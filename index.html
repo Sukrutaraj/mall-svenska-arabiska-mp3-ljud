@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Språktavla – Svenska & Arabiska</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{font-family:Arial,Helvetica,sans-serif;background:#f3f5f7;padding:20px}
+h1{font-size:28px}
+.section{background:#fff;border-radius:14px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.cell{border:1px dashed #bbb;border-radius:12px;padding:10px;text-align:center}
+.image-box{width:100%;aspect-ratio:1 / 1;border-radius:10px;overflow:hidden;background:#e0e0e0;margin-bottom:6px}
+.image-box img{width:100%;height:100%;object-fit:cover}
+button{margin:4px;padding:6px 10px;border:none;border-radius:8px;cursor:pointer}
+.sv{background:#0b6fb1;color:#fff}
+.ar{background:#6a1bb1;color:#fff}
+.rec{background:#4caf50;color:#fff}
+.rec.active{background:#c62828}
+.play{background:#333;color:#fff}
+.play.active{background:#2e7d32}
+.upload{background:#ff9800;color:#fff}
+.status{font-size:12px;margin-top:4px}
+</style>
+</head>
+
+<body>
+
+<h1>Språktavla – Svenska & Arabiska</h1>
+
+<div class="section">
+<label><strong>Titel</strong></label><br>
+<input id="title" value="Språktavla – Svenska & Arabiska" style="width:100%;padding:8px">
+</div>
+
+<div class="section">
+<div class="grid" id="builder"></div>
+</div>
+
+<div class="section">
+<button id="genBtn" onclick="generate()">Generera språktavla</button>
+<button onclick="download()">⬇ Ladda ner färdig HTML</button>
+</div>
+
+<div class="section" id="result" style="display:none"></div>
+
+<script>
+let images={}, audioSV={}, audioAR={}, stream=null, recording=false;
+
+async function mic(){
+ if(!stream){
+  stream=await navigator.mediaDevices.getUserMedia({audio:true});
+ }
+ return stream;
+}
+
+function build(){
+ const b=document.getElementById('builder');
+ for(let i=1;i<=8;i++){
+  b.innerHTML+=`
+   <div class="cell">
+    <strong>Ruta ${i}</strong><br>
+
+    <input type="file" accept="image/*" onchange="imgLoad(event,${i})"><br>
+
+    <div class="image-box">
+      <img id="img${i}" style="display:none">
+    </div>
+
+    <button class="rec sv" id="recSV${i}" onclick="record(${i},'sv')">🎙 SV</button>
+    <button class="rec ar" id="recAR${i}" onclick="record(${i},'ar')">🎙 AR</button><br>
+
+    <!-- 🔊 NYTT: Ladda upp färdig MP3/M4A -->
+    <label style="display:block;margin-top:6px;font-size:12px;">Välj fil SV</label>
+    <input type="file" accept="audio/*" onchange="audioUpload(event,${i},'sv')">
+    <label style="display:block;margin-top:6px;font-size:12px;">Välj fil AR</label>
+    <input type="file" accept="audio/*" onchange="audioUpload(event,${i},'ar')"><br>
+
+    <button class="play" onclick="play(audioSV[${i}],this)">▶ SV</button>
+    <button class="play" onclick="play(audioAR[${i}],this)">▶ AR</button>
+
+    <div class="status" id="status${i}">Ingen inspelning</div>
+   </div>`;
+ }
+}
+
+function imgLoad(e,i){
+ const r=new FileReader();
+ r.onload=()=>{
+  images[i]=r.result;
+  const img=document.getElementById('img'+i);
+  img.src=r.result;
+  img.style.display='block';
+ };
+ r.readAsDataURL(e.target.files[0]);
+}
+
+function audioUpload(e,i,lang){
+ const file=e.target.files[0];
+ if(!file) return;
+ const r=new FileReader();
+ r.onload=()=>{
+  if(lang==='sv') audioSV[i]=r.result;
+  else audioAR[i]=r.result;
+  status(i,'Ljudfil uppladdad');
+ };
+ r.readAsDataURL(file);
+}
+
+async function record(i,lang){
+ if(recording) return;
+ recording=true;
+ genBtn.disabled=true;
+
+ const btn=document.getElementById(lang==='sv'?'recSV'+i:'recAR'+i);
+ btn.classList.add('active');
+ status(i,'Spelar in…');
+
+ const s=await mic();
+ const rec=new MediaRecorder(s);
+ let data=[];
+ rec.ondataavailable=e=>data.push(e.data);
+ rec.onstop=()=>{
+  const r=new FileReader();
+  r.onload=()=>{
+   if(lang==='sv') audioSV[i]=r.result;
+   else audioAR[i]=r.result;
+   status(i,'Inspelning klar');
+   btn.classList.remove('active');
+   recording=false;
+   genBtn.disabled=false;
+  };
+  r.readAsDataURL(new Blob(data,{type:'audio/webm'}));
+ };
+ rec.start();
+ setTimeout(()=>rec.stop(),2000);
+}
+
+function status(i,text){
+ document.getElementById('status'+i).innerText=text;
+}
+
+function play(src,btn){
+ if(!src) return;
+ btn.classList.add('active');
+ const a=new Audio(src);
+ a.onended=()=>btn.classList.remove('active');
+ a.play();
+}
+
+function generate(){
+ let html=`<h2>${title.value}</h2><div class="grid">`;
+ for(let i=1;i<=8;i++){
+  html+=`
+   <div class="cell">
+    ${images[i]?`
+     <div class="image-box">
+      <img src="${images[i]}">
+     </div>`:''}
+
+    ${audioSV[i]?`<button onclick="new Audio('${audioSV[i]}').play()">▶ Svenska</button>`:''}
+    ${audioAR[i]?`<button onclick="new Audio('${audioAR[i]}').play()">▶ العربية</button>`:''}
+   </div>`;
+ }
+ html+=`</div>`;
+ result.innerHTML=html;
+ result.style.display='block';
+}
+
+function download(){
+ const blob=new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title.value}</title>${document.querySelector('style').outerHTML}</head><body>${result.innerHTML}</body></html>`],{type:'text/html'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='index.html';
+ a.click();
+}
+
+build();
+</script>
+
+</body>
+</html>
